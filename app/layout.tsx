@@ -3,8 +3,8 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: 'FutebolAoVivo — Jogos em Tempo Real',
-  description: 'Acompanhe todos os jogos de futebol ao vivo, resultados, estatísticas e muito mais.',
+  title: 'FutebolAoVivo — Jogos & Análise de Apostas',
+  description: 'Jogos ao vivo, resultados, estatísticas e análise preditiva de apostas esportivas.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
         <footer className="text-center py-4 text-sm" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
-          Dados fornecidos pela ESPN • Atualização automática a cada 30s
+          Dados: ESPN API + The Odds API • Uso pessoal • Análise estatística de probabilidade
         </footer>
       </body>
     </html>
