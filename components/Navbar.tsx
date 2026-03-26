@@ -8,7 +8,8 @@ const links = [
   { href: '/ao-vivo', label: '🔴 Ao Vivo' },
   { href: '/semana', label: 'Esta Semana' },
   { href: '/competicoes', label: 'Competições' },
-  { href: '/eventos', label: '🎯 Apostas' },
+  { href: '/apostar', label: '🔥 Apostar' },
+  { href: '/eventos', label: '🎯 Análise' },
 ];
 
 export default function Navbar() {
