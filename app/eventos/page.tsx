@@ -1,4 +1,5 @@
 import { getMultipleSportsEvents, SPORT_CATEGORIES, isApiConfigured, OddsEvent } from '@/lib/odds-api';
+// getCategoryEvents usada pelo EventsClient via API route
 import EventsClient from './EventsClient';
 
 export const revalidate = 300; // 5 minutes
@@ -11,9 +12,10 @@ export default async function EventosPage() {
   if (apiOk) {
     const footballCategory = SPORT_CATEGORIES.find(c => c.id === 'futebol');
     if (footballCategory) {
+      // Busca com múltiplos mercados para mostrar H2H + Over/Under + Handicap
       initialEvents = await getMultipleSportsEvents(
-        footballCategory.sport_keys.slice(0, 4), // top 4 leagues initially
-        { regions: 'eu,uk,au', markets: 'h2h' }
+        footballCategory.sport_keys.slice(0, 4),
+        { regions: 'eu,uk,au', markets: ['h2h', 'totals', 'spreads'] }
       );
     }
   }

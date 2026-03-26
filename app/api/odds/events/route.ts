@@ -1,29 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEventOdds, getMultipleSportsEvents, SPORT_CATEGORIES } from '@/lib/odds-api';
+import { getCategoryEvents, getEventOdds, SPORT_CATEGORIES } from '@/lib/odds-api';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get('category') ?? 'futebol';
-  const sport = searchParams.get('sport'); // single sport key override
+  const sport = searchParams.get('sport');
+  const marketsParam = searchParams.get('markets');
 
-  // Single sport mode
+  // Modo de esporte único com mercados customizados
   if (sport) {
-    const events = await getEventOdds(sport, { regions: 'eu,uk,au', markets: 'h2h' });
+    const markets = marketsParam ? marketsParam.split(',') : ['h2h', 'totals'];
+    const events = await getEventOdds(sport, {
+      regions: 'eu,uk,au',
+      markets,
+      cacheSeconds: 300,
+    });
     return NextResponse.json(events);
   }
 
-  // Category mode: fetch all sports in the category
-  const cat = SPORT_CATEGORIES.find(c => c.id === category);
-  if (!cat) {
+  // Modo de categoria (usa os mercados padrão da categoria)
+  const catConfig = SPORT_CATEGORIES.find(c => c.id === category);
+  if (!catConfig) {
     return NextResponse.json({ error: 'Unknown category' }, { status: 400 });
   }
 
-  // Limit concurrent requests to avoid rate limiting
-  const sportKeys = cat.sport_keys.slice(0, 6); // max 6 sports per request
-  const events = await getMultipleSportsEvents(sportKeys, {
-    regions: 'eu,uk,au',
-    markets: 'h2h',
-  });
-
+  const events = await getCategoryEvents(category);
   return NextResponse.json(events);
 }

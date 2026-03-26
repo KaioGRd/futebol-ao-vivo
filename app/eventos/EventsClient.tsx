@@ -1,132 +1,35 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { OddsEvent, SPORT_CATEGORIES, getBestBookmakerOdds, getConsensusOdds } from '@/lib/odds-api';
+import { OddsEvent, SPORT_CATEGORIES } from '@/lib/odds-api';
 import { analyzeEvent } from '@/lib/probability';
 import EventOddsCard from '@/components/EventOddsCard';
 
 type FilterType = 'all' | 'value' | 'excellent' | 'upcoming' | 'live';
-type SortType = 'time' | 'ev' | 'odds' | 'prob';
+type SortType = 'time' | 'ev' | 'odds';
 
-function SportTab({
-  cat,
-  active,
-  onClick,
-}: {
-  cat: { id: string; label: string; emoji: string };
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all"
-      style={{
-        background: active ? 'var(--accent-dark)' : 'var(--bg-card)',
-        color: active ? '#fff' : 'var(--text-secondary)',
-        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-      }}
-    >
-      <span>{cat.emoji}</span>
-      <span className="hidden sm:block">{cat.label}</span>
-    </button>
-  );
-}
+// Calcula o melhor EV disponível em qualquer mercado do evento
+function scoreEvent(event: OddsEvent) {
+  let bestEV = -Infinity;
+  let hasValue = false;
+  let maxOdds = 0;
 
-function FilterChip({
-  label,
-  active,
-  count,
-  color,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  count?: number;
-  color?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap"
-      style={{
-        background: active
-          ? color ?? 'var(--accent-dark)'
-          : 'var(--bg-card)',
-        color: active ? '#fff' : 'var(--text-muted)',
-        border: `1px solid ${active ? color ?? 'var(--accent)' : 'var(--border)'}`,
-      }}
-    >
-      {label}
-      {count !== undefined && (
-        <span
-          className="text-xs px-1.5 py-0.5 rounded-full font-bold"
-          style={{
-            background: active ? 'rgba(0,0,0,0.2)' : 'var(--border)',
-            color: active ? '#fff' : 'var(--text-secondary)',
-          }}
-        >
-          {count}
-        </span>
-      )}
-    </button>
-  );
-}
-
-function EmptyState({ apiConfigured }: { apiConfigured: boolean }) {
-  if (!apiConfigured) {
-    return (
-      <div className="rounded-xl p-8 text-center" style={{ background: 'var(--bg-card)', border: '1px dashed var(--border)' }}>
-        <div className="text-4xl mb-4">🔑</div>
-        <h3 className="font-bold text-lg mb-2 text-white">API Key Necessária</h3>
-        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-          Para ver odds e análises, você precisa de uma API Key gratuita.
-        </p>
-        <div className="rounded-lg p-4 text-left text-sm mb-4" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
-          <p className="font-semibold text-white mb-2">Como configurar:</p>
-          <ol className="space-y-1.5" style={{ color: 'var(--text-secondary)' }}>
-            <li>1. Acesse <strong className="text-white">the-odds-api.com</strong> e crie uma conta gratuita</li>
-            <li>2. Copie sua API Key do painel</li>
-            <li>3. Crie o arquivo <code className="text-green-400">.env.local</code> na raiz do projeto</li>
-            <li>4. Adicione: <code className="text-green-400">ODDS_API_KEY=sua_chave_aqui</code></li>
-            <li>5. Reinicie o servidor: <code className="text-green-400">npm run dev</code></li>
-          </ol>
-        </div>
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Plano gratuito: 500 requisições/mês • Sem cartão de crédito
-        </p>
-      </div>
-    );
+  // Analisa todos os mercados disponíveis
+  const marketKeys = new Set<string>();
+  for (const bk of event.bookmakers) {
+    for (const mk of bk.markets) marketKeys.add(mk.key);
   }
 
-  return (
-    <div className="rounded-xl p-8 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-      <div className="text-4xl mb-3">📭</div>
-      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-        Nenhum evento encontrado para este filtro.
-      </p>
-    </div>
-  );
-}
+  for (const mk of marketKeys) {
+    const analysis = analyzeEvent(event, mk);
+    for (const o of analysis.outcomes) {
+      if (o.ev > bestEV) bestEV = o.ev;
+      if (o.ev > 0) hasValue = true;
+      if (o.bestOdds > maxOdds) maxOdds = o.bestOdds;
+    }
+  }
 
-// Score each event for sorting/filtering
-function scoreEvent(event: OddsEvent): { ev: number; hasValue: boolean; maxOdds: number } {
-  const best = getBestBookmakerOdds(event, 'h2h');
-  const consensus = getConsensusOdds(event, 'h2h');
-  const prices = consensus ?? best?.outcomes ?? [];
-
-  if (prices.length === 0) return { ev: -1, hasValue: false, maxOdds: 0 };
-
-  const analysis = analyzeEvent(prices);
-  const maxEV = Math.max(...analysis.outcomes.map(o => o.ev));
-  const maxOdds = Math.max(...prices.map(p => p.price));
-
-  return {
-    ev: maxEV,
-    hasValue: analysis.hasValueBet,
-    maxOdds,
-  };
+  return { ev: bestEV === -Infinity ? -1 : bestEV, hasValue, maxOdds };
 }
 
 interface Props {
@@ -147,138 +50,103 @@ export default function EventsClient({ initialEvents, apiConfigured }: Props) {
     setLoading(true);
     try {
       const res = await fetch(`/api/odds/events?category=${category}`);
-      if (res.ok) {
-        const data = await res.json();
-        setEvents(data);
-      }
-    } catch {
-      // keep existing events
-    } finally {
-      setLoading(false);
-    }
+      if (res.ok) setEvents(await res.json());
+    } catch { /* keep existing */ }
+    finally { setLoading(false); }
   }, [apiConfigured]);
 
-  useEffect(() => {
-    fetchEvents(activeCategory);
-  }, [activeCategory, fetchEvents]);
-
-  // Score and filter events
-  const scored = events.map(e => ({ event: e, ...scoreEvent(e) }));
+  useEffect(() => { fetchEvents(activeCategory); }, [activeCategory, fetchEvents]);
 
   const now = new Date();
+  const scored = events.map(e => ({ event: e, ...scoreEvent(e) }));
+
   const filtered = scored.filter(({ event, hasValue, ev }) => {
     const start = new Date(event.commence_time);
     const diffMin = (start.getTime() - now.getTime()) / 60000;
-    const matchesSearch = !search ||
-      event.home_team.toLowerCase().includes(search.toLowerCase()) ||
-      event.away_team.toLowerCase().includes(search.toLowerCase()) ||
-      event.sport_title.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchesSearch = !q
+      || event.home_team.toLowerCase().includes(q)
+      || event.away_team.toLowerCase().includes(q)
+      || event.sport_title.toLowerCase().includes(q);
 
     if (!matchesSearch) return false;
-
     switch (filter) {
-      case 'value': return hasValue;
+      case 'value':     return hasValue;
       case 'excellent': return ev >= 0.04;
-      case 'upcoming': return diffMin > 0 && diffMin < 180; // next 3h
-      case 'live': return diffMin < 0;
-      default: return true;
+      case 'upcoming':  return diffMin > 0 && diffMin < 180;
+      case 'live':      return diffMin < 0;
+      default:          return true;
     }
   });
 
-  // Sort
   const sorted = [...filtered].sort((a, b) => {
-    switch (sort) {
-      case 'ev': return b.ev - a.ev;
-      case 'odds': return b.maxOdds - a.maxOdds;
-      case 'prob':
-        return b.ev - a.ev; // same as EV for now
-      case 'time':
-      default:
-        return new Date(a.event.commence_time).getTime() - new Date(b.event.commence_time).getTime();
-    }
+    if (sort === 'ev')   return b.ev - a.ev;
+    if (sort === 'odds') return b.maxOdds - a.maxOdds;
+    return new Date(a.event.commence_time).getTime() - new Date(b.event.commence_time).getTime();
   });
 
-  // Counts for filter badges
   const counts = {
-    all: scored.length,
-    value: scored.filter(e => e.hasValue).length,
+    all:       scored.length,
+    value:     scored.filter(e => e.hasValue).length,
     excellent: scored.filter(e => e.ev >= 0.04).length,
-    upcoming: scored.filter(e => {
-      const diff = (new Date(e.event.commence_time).getTime() - now.getTime()) / 60000;
-      return diff > 0 && diff < 180;
-    }).length,
-    live: scored.filter(e => (new Date(e.event.commence_time).getTime() - now.getTime()) / 60000 < 0).length,
+    upcoming:  scored.filter(e => { const d = (new Date(e.event.commence_time).getTime() - now.getTime()) / 60000; return d > 0 && d < 180; }).length,
+    live:      scored.filter(e => (new Date(e.event.commence_time).getTime() - now.getTime()) / 60000 < 0).length,
   };
 
   return (
     <div>
-      {/* Sport Category Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
+      {/* ── Sport Tabs ── */}
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-5">
         {SPORT_CATEGORIES.map(cat => (
-          <SportTab
+          <button
             key={cat.id}
-            cat={cat}
-            active={activeCategory === cat.id}
             onClick={() => setActiveCategory(cat.id)}
-          />
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0"
+            style={{
+              background: activeCategory === cat.id ? 'var(--accent-dark)' : 'var(--bg-card)',
+              color: activeCategory === cat.id ? '#fff' : 'var(--text-secondary)',
+              border: `1px solid ${activeCategory === cat.id ? 'var(--accent)' : 'var(--border)'}`,
+            }}
+          >
+            {cat.emoji} <span className="hidden sm:inline">{cat.label}</span>
+          </button>
         ))}
       </div>
 
-      {/* Filter + Sort Bar */}
-      <div className="flex flex-wrap gap-2 mb-4 items-center">
-        {/* Filters */}
-        <div className="flex gap-1.5 flex-wrap">
-          <FilterChip
-            label="Todos"
-            active={filter === 'all'}
-            count={counts.all}
-            onClick={() => setFilter('all')}
-          />
-          <FilterChip
-            label="🔥 Value Bets"
-            active={filter === 'value'}
-            count={counts.value}
-            color="#22c55e"
-            onClick={() => setFilter('value')}
-          />
-          <FilterChip
-            label="⭐ Excelentes"
-            active={filter === 'excellent'}
-            count={counts.excellent}
-            color="#f97316"
-            onClick={() => setFilter('excellent')}
-          />
-          <FilterChip
-            label="⚡ Próximos 3h"
-            active={filter === 'upcoming'}
-            count={counts.upcoming}
-            color="#eab308"
-            onClick={() => setFilter('upcoming')}
-          />
-          {counts.live > 0 && (
-            <FilterChip
-              label="🔴 Ao Vivo"
-              active={filter === 'live'}
-              count={counts.live}
-              color="#ef4444"
-              onClick={() => setFilter('live')}
-            />
-          )}
-        </div>
+      {/* ── Filtros + Sort ── */}
+      <div className="flex flex-wrap gap-2 items-center mb-4">
+        {([
+          { id: 'all', label: 'Todos', color: undefined },
+          { id: 'value', label: '🔥 Value Bets', color: '#22c55e' },
+          { id: 'excellent', label: '⭐ Excelentes', color: '#f97316' },
+          { id: 'upcoming', label: '⚡ Próx. 3h', color: '#eab308' },
+          ...(counts.live > 0 ? [{ id: 'live', label: '🔴 Ao Vivo', color: '#ef4444' }] : []),
+        ] as { id: FilterType; label: string; color?: string }[]).map(f => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap"
+            style={{
+              background: filter === f.id ? (f.color ?? 'var(--accent-dark)') : 'var(--bg-card)',
+              color: filter === f.id ? '#fff' : 'var(--text-muted)',
+              border: `1px solid ${filter === f.id ? (f.color ?? 'var(--accent)') : 'var(--border)'}`,
+            }}
+          >
+            {f.label}
+            <span className="ml-1 px-1 rounded-full text-xs"
+              style={{ background: 'rgba(0,0,0,0.2)', color: 'inherit' }}>
+              {counts[f.id]}
+            </span>
+          </button>
+        ))}
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Sort */}
         <select
           value={sort}
           onChange={e => setSort(e.target.value as SortType)}
           className="rounded-lg px-3 py-1.5 text-xs font-medium outline-none"
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-secondary)',
-          }}
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
         >
           <option value="time">Por Horário</option>
           <option value="ev">Maior EV</option>
@@ -286,69 +154,80 @@ export default function EventsClient({ initialEvents, apiConfigured }: Props) {
         </select>
       </div>
 
-      {/* Search */}
-      <div className="mb-5">
+      {/* ── Search ── */}
+      <div className="relative mb-5">
         <input
           type="text"
-          placeholder="Buscar time, competição..."
+          placeholder="🔍 Buscar time, competição..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full rounded-lg px-4 py-2.5 text-sm outline-none"
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-primary)',
-          }}
+          className="w-full rounded-xl px-4 py-2.5 text-sm outline-none"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
         />
       </div>
 
-      {/* Stats Bar */}
-      {events.length > 0 && (
+      {/* ── Stats ── */}
+      {!loading && events.length > 0 && (
         <div className="grid grid-cols-3 gap-3 mb-6">
-          <div
-            className="rounded-xl p-3 text-center"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-          >
-            <div className="text-xl font-bold text-white">{counts.all}</div>
+          <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div className="text-2xl font-black text-white">{counts.all}</div>
             <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Eventos</div>
           </div>
-          <div
-            className="rounded-xl p-3 text-center"
-            style={{ background: 'var(--bg-card)', border: '1px solid rgba(34,197,94,0.3)' }}
-          >
-            <div className="text-xl font-bold" style={{ color: '#22c55e' }}>{counts.value}</div>
+          <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-card)', border: '1px solid rgba(34,197,94,0.3)' }}>
+            <div className="text-2xl font-black" style={{ color: '#22c55e' }}>{counts.value}</div>
             <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Value Bets</div>
           </div>
-          <div
-            className="rounded-xl p-3 text-center"
-            style={{ background: 'var(--bg-card)', border: '1px solid rgba(249,115,22,0.3)' }}
-          >
-            <div className="text-xl font-bold" style={{ color: '#f97316' }}>{counts.excellent}</div>
+          <div className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-card)', border: '1px solid rgba(249,115,22,0.3)' }}>
+            <div className="text-2xl font-black" style={{ color: '#f97316' }}>{counts.excellent}</div>
             <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Excelentes</div>
           </div>
         </div>
       )}
 
-      {/* Loading */}
+      {/* ── Loading ── */}
       {loading && (
-        <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
-          <div className="text-2xl mb-2">⏳</div>
-          <p className="text-sm">Carregando eventos e odds...</p>
+        <div className="text-center py-16" style={{ color: 'var(--text-muted)' }}>
+          <div className="text-3xl mb-3 animate-pulse">📡</div>
+          <p className="text-sm">Buscando eventos e odds em tempo real...</p>
         </div>
       )}
 
-      {/* Events Grid */}
+      {/* ── Grid ── */}
       {!loading && sorted.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {sorted.map(({ event }) => (
             <EventOddsCard key={event.id} event={event} />
           ))}
         </div>
       )}
 
-      {/* Empty State */}
+      {/* ── Empty ── */}
       {!loading && sorted.length === 0 && (
-        <EmptyState apiConfigured={apiConfigured} />
+        <div className="rounded-xl p-10 text-center" style={{ background: 'var(--bg-card)', border: '1px dashed var(--border)' }}>
+          {!apiConfigured ? (
+            <>
+              <div className="text-4xl mb-4">🔑</div>
+              <h3 className="font-bold text-lg mb-3 text-white">API Key Necessária</h3>
+              <div className="rounded-lg p-4 text-left text-sm mb-4 max-w-md mx-auto" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+                <ol className="space-y-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  <li>1. Acesse <strong className="text-white">the-odds-api.com</strong> e crie conta gratuita</li>
+                  <li>2. Copie sua API Key</li>
+                  <li>3. Crie <code className="text-green-400">.env.local</code> na raiz do projeto</li>
+                  <li>4. Adicione: <code className="text-green-400">ODDS_API_KEY=sua_chave</code></li>
+                  <li>5. Reinicie: <code className="text-green-400">npm run dev</code></li>
+                </ol>
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Plano gratuito: 500 req/mês</p>
+            </>
+          ) : (
+            <>
+              <div className="text-3xl mb-2">📭</div>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                Nenhum evento encontrado para este filtro ou esporte.
+              </p>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
