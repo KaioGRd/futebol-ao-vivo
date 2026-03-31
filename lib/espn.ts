@@ -32,7 +32,9 @@ function parseEvent(event: any, league: League): Game | null {
   if (!competition) return null;
 
   const competitors = competition.competitors ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const home = competitors.find((c: any) => c.homeAway === 'home');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const away = competitors.find((c: any) => c.homeAway === 'away');
   if (!home || !away) return null;
 
@@ -87,6 +89,7 @@ async function fetchScoreboard(leagueSlug: string, dateParam?: string): Promise<
     if (!res.ok) return [];
     const data = await res.json();
     const league = getLeague(leagueSlug);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (data.events ?? []).map((e: any) => parseEvent(e, league)).filter(Boolean) as Game[];
   } catch {
     return [];
@@ -182,6 +185,7 @@ export async function getStandings(leagueSlug: string): Promise<Standing[]> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return entries.map((entry: any) => {
       const stats = entry.stats ?? [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const get = (name: string) => parseInt(stats.find((s: any) => s.name === name)?.value ?? '0');
       return {
         team: {

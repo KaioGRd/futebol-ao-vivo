@@ -12,13 +12,17 @@ interface Props {
   filterState?: 'all' | 'in' | 'pre' | 'post';
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseGames(events: any[], league: League): Game[] {
   return events
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((event: any) => {
       const competition = event.competitions?.[0];
       if (!competition) return null;
       const competitors = competition.competitors ?? [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const home = competitors.find((c: any) => c.homeAway === 'home');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const away = competitors.find((c: any) => c.homeAway === 'away');
       if (!home || !away) return null;
       const status = event.status?.type ?? {};

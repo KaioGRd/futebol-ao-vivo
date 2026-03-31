@@ -1,4 +1,5 @@
 import { getMatchDetail } from '@/lib/espn';
+import { Player } from '@/lib/types';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -211,7 +212,7 @@ export default async function MatchPage({
                 {home.team.name}
               </h3>
               <div className="space-y-1.5">
-                {homePlayers.slice(0, 18).map((p: any, i: number) => (
+                {homePlayers.slice(0, 18).map((p: Player, i: number) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
                     <span
                       className="w-6 h-6 rounded text-xs font-bold flex items-center justify-center shrink-0"
@@ -233,7 +234,7 @@ export default async function MatchPage({
                 {away.team.name}
               </h3>
               <div className="space-y-1.5">
-                {awayPlayers.slice(0, 18).map((p: any, i: number) => (
+                {awayPlayers.slice(0, 18).map((p: Player, i: number) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
                     <span
                       className="w-6 h-6 rounded text-xs font-bold flex items-center justify-center shrink-0"
